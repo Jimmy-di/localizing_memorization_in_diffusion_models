@@ -125,7 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('--samples_per_prompt', default=10, type=int, help='Number of samples generated per prompt (default: 10)')
     parser.add_argument('--num_inference_steps', default=50, type=int, help='Number of inference steps used to generate the images. Even though only the first step is used, this has an effect on the noise prediction of the first step. (default: 50)')
     parser.add_argument('-sf', '--scaling_factor', default=0.0, type=float, help='Scaling factor for neuron activations (default: 0.0)')
-    parser.add_argument('--pairwise_ssim_threshold', default=0.428, type=float, help='Threshold for the pairwise SSIM for choosing at which initial samples to look at (default: 0.428)')
+    parser.add_argument('--pairwise_ssim_threshold', default=0.420, type=float, help='Threshold for the pairwise SSIM for choosing at which initial samples to look at (default: 0.428)')
     parser.add_argument('--ssim_threshold_initial_selection', default=0.428, type=float, help='SSIM threshold for the initial neuron selection (default: 0.428)')
     parser.add_argument('--ssim_threshold_refinement', default=0.428, type=float, help='SSIM threshold for the neuron refinement (default: 0.428)')
     parser.add_argument('--rel_threshold_refinement', default=None, type=float, help='Relative threshold for the neuron refinement (default: None)')

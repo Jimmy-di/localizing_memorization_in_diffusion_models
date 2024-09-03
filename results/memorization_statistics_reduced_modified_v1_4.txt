@@ -1,0 +1,21 @@
+version: v1-4
+dataset: prompts/memorized_laion_prompts_reduced_modified.csv
+output: results/memorization_statistics_reduced_modified_v1_4.csv
+seed: 1
+samples_per_prompt: 10
+num_inference_steps: 50
+scaling_factor: 0.0
+pairwise_ssim_threshold: 0.42
+ssim_threshold_initial_selection: 0.428
+ssim_threshold_refinement: 0.428
+rel_threshold_refinement: None
+guidance_scale: 0
+theta_reduction_per_step: 0.25
+min_theta: 1
+no_theta: False
+initial_theta: 5
+no_top_k: False
+initial_k: 0
+name: XX
+continue_run: False
+Command: 3_detect_memorized_neurons.py -d prompts/memorized_laion_prompts_reduced_modified.csv --pairwise_ssim_threshold 0.42 -o results/memorization_statistics_reduced_modified.csv
