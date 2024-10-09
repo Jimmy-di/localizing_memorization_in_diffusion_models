@@ -224,7 +224,7 @@ def main():
         elif args.original_images:
             blocked_indices = None
                     
-        images = generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, num_inference_steps=args.num_steps, blocked_indices=blocked_indices, scaling_factor=args.scaling_factor, guidance_scale=args.guidance_scale, samples_per_prompt=args.num_samples, seed=args.seed)
+        images = generate_images([i, prompts], tokenizer, text_encoder, vae, unet, scheduler, num_inference_steps=args.num_steps, blocked_indices=blocked_indices, scaling_factor=args.scaling_factor, guidance_scale=args.guidance_scale, samples_per_prompt=args.num_samples, seed=args.seed)
 
         for j in range(len(images)):
             images[j].save(f"{args.output_path}/img_{i*args.batch_size + j // args.num_samples:04d}_{j%args.num_samples:02d}.jpg")

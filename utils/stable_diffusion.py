@@ -37,7 +37,10 @@ def load_text_components(model_path):
 
 
 @torch.no_grad
-def generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, blocked_indices=None, scaling_factor=0.0, num_inference_steps=50, early_stopping=None, seed=1, guidance_scale=7, samples_per_prompt=1, hooks=None, inactive_hook_steps=None):
+def generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, blocked_indices=None, scaling_factor=0.0, num_inference_steps=50, early_stopping=None, seed=1, guidance_scale=7, samples_per_prompt=1, hooks=None, inactive_hook_steps=None, add_noise=True):
+    index = prompts[0]
+    prompts = prompts[1]
+    print(prompts)
     with torch.no_grad():
         height = 512
         width = 512
@@ -53,6 +56,12 @@ def generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, bloc
         text_embeddings = text_encoder(
             text_input.input_ids.to(text_encoder.device))[0]
 
+        if add_noise:
+            noise = torch.load('noise/{}.pt'.format(index))
+            print(text_embeddings.shape)
+            if noise.shape == text_embeddings.shape:
+                text_embeddings = text_embeddings + noise
+            
         max_length = text_input.input_ids.shape[-1]
         if guidance_scale != 0:
             uncond_input = tokenizer([""] * len(prompts),

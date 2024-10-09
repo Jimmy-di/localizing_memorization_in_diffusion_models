@@ -48,7 +48,7 @@ def compute_memorization_statistics(args):
         output_dict = {'Caption': prompt, 'URL': row['URL']}
         
         # find the initial selection of blocked neurons
-        noise_diff_unblocked = compute_noise_diff([prompt], tokenizer, text_encoder, unet, scheduler, seed=args.seed, blocked_indices=None, scaling_factor=args.scaling_factor, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, num_inference_steps=args.num_inference_steps)
+        noise_diff_unblocked = compute_noise_diff([i, [prompt]], tokenizer, text_encoder, unet, scheduler, seed=args.seed, blocked_indices=None, scaling_factor=args.scaling_factor, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, num_inference_steps=args.num_inference_steps, noise_mu=args.noise_mu, save_noise=True)
 
         max_ssims_per_noise_diff = calculate_max_pairwise_ssim(noise_diff_unblocked)
         sample_indices_to_look_at = max_ssims_per_noise_diff > args.pairwise_ssim_threshold
@@ -80,8 +80,8 @@ def compute_memorization_statistics(args):
 
         refinement_ssim_threshold = args.ssim_threshold_refinement
         while ssim > args.ssim_threshold_initial_selection:
-            blocked_indices = initial_neuron_selection(prompt, tokenizer, text_encoder, unet, scheduler, layer_depth=layer_depth, theta=theta, k=k, seed=args.seed, version=args.version)
-            noise_diff_blocked = compute_noise_diff([prompt], tokenizer, text_encoder, unet, scheduler, seed=args.seed, blocked_indices=blocked_indices, scaling_factor=args.scaling_factor, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, num_inference_steps=args.num_inference_steps, seed_indices_to_return=sample_indices_to_look_at)
+            blocked_indices = initial_neuron_selection([i, [prompt]], tokenizer, text_encoder, unet, scheduler, layer_depth=layer_depth, theta=theta, k=k, seed=args.seed, version=args.version)
+            noise_diff_blocked = compute_noise_diff([i, [prompt]], tokenizer, text_encoder, unet, scheduler, seed=args.seed, blocked_indices=blocked_indices, scaling_factor=args.scaling_factor, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, num_inference_steps=args.num_inference_steps, seed_indices_to_return=sample_indices_to_look_at, noise_mu=args.noise_mu)
             ssim = multiscale_structural_similarity_index_measure(noise_diff_unblocked, noise_diff_blocked, reduction='none', kernel_size=11, betas=(0.33, 0.33, 0.33)).max()
                 
             if ssim > args.ssim_threshold_initial_selection:
@@ -100,11 +100,11 @@ def compute_memorization_statistics(args):
         output_dict['Initial SSIM'] = ssim.cpu().item()
         
         # refine the selection of blocked prompt
-        refined_blocking_indices = neuron_refinement(prompt, tokenizer, text_encoder, unet, scheduler, input_indices=blocked_indices, scaling_factor=args.scaling_factor, threshold=refinement_ssim_threshold, rel_threshold=args.rel_threshold_refinement, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, seed=args.seed, seeds_to_look_at=sample_indices_to_look_at)
+        refined_blocking_indices = neuron_refinement([i, [prompt]], tokenizer, text_encoder, unet, scheduler, input_indices=blocked_indices, scaling_factor=args.scaling_factor, threshold=refinement_ssim_threshold, rel_threshold=args.rel_threshold_refinement, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, seed=args.seed, seeds_to_look_at=sample_indices_to_look_at)
         output_dict['Refined Neurons'] = refined_blocking_indices
         
         # compute SSIM with refined neurons
-        noise_diff_blocked = compute_noise_diff([prompt], tokenizer, text_encoder, unet, scheduler, seed=args.seed, blocked_indices=refined_blocking_indices, scaling_factor=args.scaling_factor, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, num_inference_steps=args.num_inference_steps, seed_indices_to_return=sample_indices_to_look_at)
+        noise_diff_blocked = compute_noise_diff([i, [prompt]], tokenizer, text_encoder, unet, scheduler, seed=args.seed, blocked_indices=refined_blocking_indices, scaling_factor=args.scaling_factor, samples_per_prompt=args.samples_per_prompt, guidance_scale=args.guidance_scale, num_inference_steps=args.num_inference_steps, seed_indices_to_return=sample_indices_to_look_at, noise_mu=args.noise_mu)
         ssim = multiscale_structural_similarity_index_measure(noise_diff_unblocked, noise_diff_blocked, reduction='none', kernel_size=11, betas=(0.33, 0.33, 0.33)).max()
         output_dict['Refined SSIM'] = ssim.cpu().item()
         
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('--samples_per_prompt', default=10, type=int, help='Number of samples generated per prompt (default: 10)')
     parser.add_argument('--num_inference_steps', default=50, type=int, help='Number of inference steps used to generate the images. Even though only the first step is used, this has an effect on the noise prediction of the first step. (default: 50)')
     parser.add_argument('-sf', '--scaling_factor', default=0.0, type=float, help='Scaling factor for neuron activations (default: 0.0)')
-    parser.add_argument('--pairwise_ssim_threshold', default=0.420, type=float, help='Threshold for the pairwise SSIM for choosing at which initial samples to look at (default: 0.428)')
+    parser.add_argument('--pairwise_ssim_threshold', default=0.428, type=float, help='Threshold for the pairwise SSIM for choosing at which initial samples to look at (default: 0.428)')
     parser.add_argument('--ssim_threshold_initial_selection', default=0.428, type=float, help='SSIM threshold for the initial neuron selection (default: 0.428)')
     parser.add_argument('--ssim_threshold_refinement', default=0.428, type=float, help='SSIM threshold for the neuron refinement (default: 0.428)')
     parser.add_argument('--rel_threshold_refinement', default=None, type=float, help='Relative threshold for the neuron refinement (default: None)')
@@ -137,6 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_top_k', action='store_true', help='Do not use the top k neurons for the initial selection')
     parser.add_argument('--initial_k', default=0, type=int, help='The initial k value for the initial neuron selection (default: 0)')
     parser.add_argument('-n', '--name', default='XX',  type=str,help='RTPT user name (Default: XX)')
+    parser.add_argument('--noise_mu', default=0, type=float, help='Mean of Gaussian noise added to the embedding (Default: 0)')
     parser.add_argument('--continue_run', action='store_true', help='Continue the previous run')
     
     args = parser.parse_args()

@@ -4,6 +4,51 @@ from hooks.block_activations import RescaleLinearActivations
 import copy
 from torchmetrics.functional import total_variation, multiscale_structural_similarity_index_measure
 
+@torch.no_grad()
+def prepare_diffusion_inputs_noise(prompts, tokenizer, text_encoder, unet, guidance_scale, samples_per_prompt, seed, noise_mu=0, save_noise=False, load_noise=True):
+    
+    index = prompts[0]
+    prompts = prompts[1]
+    
+    height = 512
+    width = 512
+    generator = torch.manual_seed(seed)
+    if samples_per_prompt > 1:
+        prompts = [prompt for prompt in prompts for _ in range(samples_per_prompt)]                
+    text_input = tokenizer(prompts,
+                            padding="max_length",
+                            max_length=tokenizer.model_max_length,
+                            truncation=True,
+                            return_tensors="pt")
+    text_embeddings = text_encoder(
+        text_input.input_ids.to(text_encoder.device))[0]
+    noise = torch.randn_like(text_embeddings)*(noise_mu**0.5)
+    if save_noise:
+        torch.save(noise, 'noise/{}.pt'.format(index))
+        text_embeddings = text_embeddings + noise
+
+    elif load_noise:
+        noise = torch.load('noise/{}.pt'.format(index))
+        if noise.shape == text_embeddings.shape:
+            text_embeddings = text_embeddings + noise
+
+    latents = torch.randn(
+        (len(prompts), unet.config.in_channels, height // 8, width // 8),
+        generator=generator,
+    )
+    
+    if guidance_scale != 0:
+        max_length = text_input.input_ids.shape[-1]
+        uncond_input = tokenizer([""] * len(prompts),
+                                    padding="max_length",
+                                    max_length=max_length,
+                                    return_tensors="pt")
+        uncond_embeddings = text_encoder(
+            uncond_input.input_ids.to(text_encoder.device))[0]
+        text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+
+    latents = latents.to(text_embeddings.device)
+    return latents, text_embeddings
 
 @torch.no_grad()
 def prepare_diffusion_inputs(prompts, tokenizer, text_encoder, unet, guidance_scale, samples_per_prompt, seed):
@@ -20,6 +65,7 @@ def prepare_diffusion_inputs(prompts, tokenizer, text_encoder, unet, guidance_sc
     text_embeddings = text_encoder(
         text_input.input_ids.to(text_encoder.device))[0]
 
+        
     latents = torch.randn(
         (len(prompts), unet.config.in_channels, height // 8, width // 8),
         generator=generator,
@@ -41,8 +87,9 @@ def prepare_diffusion_inputs(prompts, tokenizer, text_encoder, unet, guidance_sc
 
 # run the denoising process to collect the activations with a hook (has to be added beforehand)
 @torch.no_grad()
-def collect_activations(prompts, tokenizer, text_encoder, unet, scheduler, num_inference_steps=50, early_stopping=None, seed=1, samples_per_prompt=1):
-    latents, text_embeddings = prepare_diffusion_inputs(prompts, tokenizer, text_encoder, unet, guidance_scale=0, samples_per_prompt=samples_per_prompt, seed=seed)
+def collect_activations(prompts, tokenizer, text_encoder, unet, scheduler, num_inference_steps=50, early_stopping=None, seed=1, samples_per_prompt=1, noise_mu=0):
+
+    latents, text_embeddings = prepare_diffusion_inputs_noise(prompts, tokenizer, text_encoder, unet, guidance_scale=0, samples_per_prompt=samples_per_prompt, seed=seed, noise_mu=noise_mu)
     scheduler.set_timesteps(num_inference_steps)
 
     # inject hooks into value layers
@@ -84,7 +131,7 @@ def collect_activations(prompts, tokenizer, text_encoder, unet, scheduler, num_i
 
 
 @torch.no_grad()
-def initial_neuron_selection(prompt, tokenizer, text_encoder, unet, scheduler, layer_depth, theta, k, seed=1, version='v1-5'):
+def initial_neuron_selection(prompt, tokenizer, text_encoder, unet, scheduler, layer_depth, theta, k, seed=1, version='v1-5', noise_mu=0):
     # load statistics from unmemorized LAION prompts
     if version == 'v1-4':
         mean_list, std_list = torch.load('statistics/statistics_additional_laion_prompts_v1_4.pt')
@@ -96,7 +143,7 @@ def initial_neuron_selection(prompt, tokenizer, text_encoder, unet, scheduler, l
     total_neurons = 0
 
     # compute and collect activations based on OOD detection and top-k absolute activations
-    activations_list = collect_activations([prompt], tokenizer, text_encoder, unet, scheduler, num_inference_steps=50, samples_per_prompt=1, early_stopping=1, seed=seed)
+    activations_list = collect_activations(prompt, tokenizer, text_encoder, unet, scheduler, num_inference_steps=50, samples_per_prompt=1, early_stopping=1, seed=seed, noise_mu= noise_mu)
 
     blocking_indices = [[] for i in range(7)]
     for layer_id in range(layer_depth):
@@ -131,10 +178,13 @@ def calculate_max_pairwise_ssim(noise_diffs):
 
 # denoising process to collect noise diffs between the predicted noise and the noise latents from the previous step.
 @torch.no_grad()
-def compute_noise_diff(prompts, tokenizer, text_encoder, unet, scheduler, blocked_indices, guidance_scale, seed, samples_per_prompt, scaling_factor, num_inference_steps=50, early_stopping=1, seed_indices_to_return=None):
-    latents, text_embeddings = prepare_diffusion_inputs(prompts, tokenizer, text_encoder, unet, guidance_scale=guidance_scale, samples_per_prompt=samples_per_prompt, seed=seed)
-    scheduler.set_timesteps(num_inference_steps)
+def compute_noise_diff(prompts, tokenizer, text_encoder, unet, scheduler, blocked_indices, guidance_scale, seed, samples_per_prompt, scaling_factor, num_inference_steps=50, early_stopping=1, seed_indices_to_return=None, noise_mu=0, save_noise=False):
     
+    # Added _noise
+    latents, text_embeddings = prepare_diffusion_inputs_noise(prompts, tokenizer, text_encoder, unet, guidance_scale=guidance_scale, samples_per_prompt=samples_per_prompt, seed=seed, noise_mu=noise_mu, save_noise=save_noise)
+    scheduler.set_timesteps(num_inference_steps)
+    prompts = prompts[1]
+
     if blocked_indices:
         block_handles = []
         block_hooks = []
@@ -192,7 +242,7 @@ def compute_noise_diff(prompts, tokenizer, text_encoder, unet, scheduler, blocke
 
 @torch.no_grad()
 def neuron_refinement(prompt, tokenizer, text_encoder, unet, scheduler, input_indices, scaling_factor, metric='ssim', threshold=None, samples_per_prompt=8, guidance_scale=0, seed=1, seeds_to_look_at=None, rel_threshold=None):
-    noise_diff_vanilla = compute_noise_diff([prompt], tokenizer, text_encoder, unet, scheduler, seed=seed, blocked_indices=None, scaling_factor=1, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
+    noise_diff_vanilla = compute_noise_diff(prompt, tokenizer, text_encoder, unet, scheduler, seed=seed, blocked_indices=None, scaling_factor=1, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
     blocking_indices = copy.deepcopy(input_indices)
     active_layers = set(i for i in range(len(blocking_indices)))
 
@@ -203,7 +253,7 @@ def neuron_refinement(prompt, tokenizer, text_encoder, unet, scheduler, input_in
     # 1.) remove all layers with no blocked neurons or neurons without any impact
     total_neurons = 0
     neurons_removed = 0
-    noise_diff_all_blocked = compute_noise_diff([prompt], tokenizer, text_encoder, unet, scheduler, blocked_indices=blocking_indices, scaling_factor=scaling_factor, seed=seed, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
+    noise_diff_all_blocked = compute_noise_diff(prompt, tokenizer, text_encoder, unet, scheduler, blocked_indices=blocking_indices, scaling_factor=scaling_factor, seed=seed, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
     diff_all_blocked = multiscale_structural_similarity_index_measure(noise_diff_vanilla, noise_diff_all_blocked, reduction='none', kernel_size=11, betas=(0.33, 0.33, 0.33))
     for layer_idx, layer_blocked_indices in reversed(list(enumerate(blocking_indices))):
         # unblock all neurons from a specific layer
@@ -214,7 +264,7 @@ def neuron_refinement(prompt, tokenizer, text_encoder, unet, scheduler, input_in
             total_neurons += len(layer_blocked_indices)
             curr_indices = copy.deepcopy(blocking_indices)
             curr_indices[layer_idx] = []
-            noise_diff_blocked = compute_noise_diff([prompt], tokenizer, text_encoder, unet, scheduler, blocked_indices=curr_indices, scaling_factor=scaling_factor, seed=seed, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
+            noise_diff_blocked = compute_noise_diff(prompt, tokenizer, text_encoder, unet, scheduler, blocked_indices=curr_indices, scaling_factor=scaling_factor, seed=seed, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
             if metric == 'ssim':
                 diff = multiscale_structural_similarity_index_measure(noise_diff_vanilla, noise_diff_blocked, reduction='none', kernel_size=11, betas=(0.33, 0.33, 0.33))
             
@@ -239,7 +289,7 @@ def neuron_refinement(prompt, tokenizer, text_encoder, unet, scheduler, input_in
         for neuron in blocking_indices_copy[layer_idx]:
             curr_indices = copy.deepcopy(blocking_indices)
             curr_indices[layer_idx].remove(neuron)
-            noise_diff_blocked = compute_noise_diff([prompt], tokenizer, text_encoder, unet, scheduler, blocked_indices=curr_indices, scaling_factor=scaling_factor, seed=seed, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
+            noise_diff_blocked = compute_noise_diff(prompt, tokenizer, text_encoder, unet, scheduler, blocked_indices=curr_indices, scaling_factor=scaling_factor, seed=seed, samples_per_prompt=samples_per_prompt, guidance_scale=guidance_scale, num_inference_steps=50, seed_indices_to_return=seeds_to_look_at)
             if metric=='ssim':
                 diff = multiscale_structural_similarity_index_measure(noise_diff_vanilla, noise_diff_blocked, reduction='none', kernel_size=11, betas=(0.33, 0.33, 0.33))
             elif metric == 'tv':
