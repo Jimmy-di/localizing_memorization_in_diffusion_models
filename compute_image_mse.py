@@ -11,29 +11,27 @@ if __name__ == '__main__':
     mse_results = []
     ssim_results = []
 
-    images_emma = []
-    images_george = []
+    images_test = []
 
-    emma_train = ski.io.imread("emmawatsonlead.jpg")[1:513, 1:513]
-    george_train = ski.io.imread("GeorgeMartin.jpg")[1:513, 1:513]
+    
+    original_train = ski.io.imread("south park stick of truth square.jpg")[1:513, 1:513]
 
-    foldername = "generated_images_blocked_few_0.35_2"
+    #foldername = "generated_images_orig_blocked_r_0.40_0.2"
+    foldername = "generated_images_unblocked_r_0.40_0.2"
 
-    print(emma_train.shape)
-
-    for i in range(5):
+    for i in range(7, 8):
         for j in range(5):
             image_name = "img_000" + str(i) + "_0" + str(j) + ".jpg"
             filename = os.path.join(foldername, image_name)
             img = ski.io.imread(filename)
-            images_george.append(img)
+            images_test.append(img)
             #print(img.shape)
     
-    for img in images_george:
-        mse_none = mean_squared_error(img, george_train)
-        b_max = max(img.max(), george_train.max())
-        b_min = min(img.min(), george_train.min())
-        ssim_none = ssim(img, george_train, channel_axis=-1, data_range=255)#, data_range=b_max - b_min)
+    for img in images_test:
+        mse_none = mean_squared_error(img, original_train)
+        b_max = max(img.max(), original_train.max())
+        b_min = min(img.min(), original_train.min())
+        ssim_none = ssim(img, original_train, channel_axis=-1, data_range=255)#, data_range=b_max - b_min)
         mse_results.append(mse_none)
         ssim_results.append(ssim_none)
 

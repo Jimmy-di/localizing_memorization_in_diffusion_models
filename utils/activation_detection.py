@@ -22,15 +22,16 @@ def prepare_diffusion_inputs_noise(prompts, tokenizer, text_encoder, unet, guida
                             return_tensors="pt")
     text_embeddings = text_encoder(
         text_input.input_ids.to(text_encoder.device))[0]
-    noise = torch.randn_like(text_embeddings)*(noise_mu**0.5)
+    noise = torch.randn_like(text_embeddings[0])*(noise_mu**0.5)
     if save_noise:
         torch.save(noise, 'noise/{}.pt'.format(index))
+        noise = noise.repeat(samples_per_prompt, 1, 1)
         text_embeddings = text_embeddings + noise
 
     elif load_noise:
         noise = torch.load('noise/{}.pt'.format(index))
-        if noise.shape == text_embeddings.shape:
-            text_embeddings = text_embeddings + noise
+        noise = noise.repeat(samples_per_prompt, 1, 1)
+        text_embeddings = text_embeddings + noise
 
     latents = torch.randn(
         (len(prompts), unet.config.in_channels, height // 8, width // 8),

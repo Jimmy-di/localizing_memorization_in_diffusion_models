@@ -58,9 +58,8 @@ def generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, bloc
 
         if add_noise:
             noise = torch.load('noise/{}.pt'.format(index))
-            print(text_embeddings.shape)
-            if noise.shape == text_embeddings.shape:
-                text_embeddings = text_embeddings + noise
+            noise = noise.repeat(samples_per_prompt, 1, 1)
+            text_embeddings = text_embeddings + noise
             
         max_length = text_input.input_ids.shape[-1]
         if guidance_scale != 0:

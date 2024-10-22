@@ -1,0 +1,5 @@
+generated_images_*
+noise/*
+results/*
+*.jpg
+*.png
