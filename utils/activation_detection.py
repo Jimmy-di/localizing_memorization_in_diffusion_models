@@ -22,16 +22,20 @@ def prepare_diffusion_inputs_noise(prompts, tokenizer, text_encoder, unet, guida
                             return_tensors="pt")
     text_embeddings = text_encoder(
         text_input.input_ids.to(text_encoder.device))[0]
-    noise = torch.randn_like(text_embeddings[0])*(noise_mu**0.5)
-    if save_noise:
-        torch.save(noise, 'noise/{}.pt'.format(index))
-        noise = noise.repeat(samples_per_prompt, 1, 1)
-        text_embeddings = text_embeddings + noise
+    #noise = torch.randn_like(text_embeddings[0])*(noise_mu**0.5)
 
-    elif load_noise:
-        noise = torch.load('noise/{}.pt'.format(index))
-        noise = noise.repeat(samples_per_prompt, 1, 1)
-        text_embeddings = text_embeddings + noise
+
+    #print(text_embeddings)
+    #print(noise)
+    #if save_noise:
+    #    torch.save(noise, 'noise/{}.pt'.format(index))
+    #    noise = noise.repeat(samples_per_prompt, 1, 1)
+    #    text_embeddings = text_embeddings + noise
+
+    #elif load_noise:
+    #    noise = torch.load('noise/{}.pt'.format(index))
+    #   noise = noise.repeat(samples_per_prompt, 1, 1)
+    #    text_embeddings = text_embeddings + noise
 
     latents = torch.randn(
         (len(prompts), unet.config.in_channels, height // 8, width // 8),
@@ -278,7 +282,7 @@ def neuron_refinement(prompt, tokenizer, text_encoder, unet, scheduler, input_in
                 blocking_indices[layer_idx] = []
                 active_layers.remove(layer_idx)
                 
-    print('Removed the following layers:', set(range(7)) - active_layers, f'with {neurons_removed} neurons.')
+    print(':', set(range(7)) - active_layers, f'with {neurons_removed} neurons.')
     print('Remaining layers:', active_layers, f'with {total_neurons - neurons_removed} neurons.')
 
     # 2.) check individual neurons in remaining layers

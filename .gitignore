@@ -3,3 +3,5 @@ noise/*
 results/*
 *.jpg
 *.png
+add_*
+prompts/*
