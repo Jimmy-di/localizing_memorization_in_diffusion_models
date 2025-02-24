@@ -37,13 +37,13 @@ def load_text_components(model_path):
 
 
 @torch.no_grad
-def generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, blocked_indices=None, scaling_factor=0, num_inference_steps=50, early_stopping=None, seed=1, guidance_scale=7, samples_per_prompt=1, hooks=None, inactive_hook_steps=None, add_noise=False):
+def generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, blocked_indices=None, scaling_factor=0, num_inference_steps=50, early_stopping=None, seed=1, guidance_scale=7, samples_per_prompt=1, hooks=None, inactive_hook_steps=None, add_noise=False, height=512, width=512):
     index = prompts[0]
     prompts = prompts[1]
     print(prompts)
     with torch.no_grad():
-        height = 512
-        width = 512
+        height = height
+        width = width
         generator = torch.manual_seed(seed)
         if samples_per_prompt > 1:
             prompts = [prompt for prompt in prompts for _ in range(samples_per_prompt)]

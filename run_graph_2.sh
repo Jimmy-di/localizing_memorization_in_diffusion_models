@@ -1,11 +1,7 @@
 
 #!bin/bash
-
-
-
-python compute_image_mse2.py -c 9
-
-
-python compute_image_mse2.py -c 10
-
-python compute_image_mse2.py -c 11
+for i in $(seq 0 11);
+do
+    python load_n_graph.py -f results3/test_unblocked_"$i".png -c "$i" -u
+    python load_n_graph.py -f results3/test_blocked_"$i".png -c "$i" 
+done

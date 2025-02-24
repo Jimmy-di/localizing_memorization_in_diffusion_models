@@ -1,6 +1,7 @@
 #!bin/bash
 echo "Threshold : $1"
 
+for i in $(seq 0 11);
 python -u 3_detect_memorized_neurons.py -d prompts/memorized_laion_prompts_rewrite_1.csv -o results/memorization_statistics_r_rewrite_1.csv --pairwise_ssim_threshold $1
 python -u 3_detect_memorized_neurons.py -d prompts/memorized_laion_prompts_rewrite_2.csv -o results/memorization_statistics_r_rewrite_2.csv --pairwise_ssim_threshold $1
 python -u 3_detect_memorized_neurons.py -d prompts/memorized_laion_prompts_rewrite_3.csv -o results/memorization_statistics_r_rewrite_3.csv --pairwise_ssim_threshold $1

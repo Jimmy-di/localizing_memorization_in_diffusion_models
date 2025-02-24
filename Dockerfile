@@ -16,3 +16,4 @@ RUN conda install -y pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch
 RUN pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
 
 RUN if [ -z "$wandb_key" ] ; then echo WandB API key not provided ; else wandb login "$wandb_key"; fi
+RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y

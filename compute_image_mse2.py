@@ -1,18 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import skimage as ski
-from skimage import data, img_as_float
-from skimage.metrics import structural_similarity as ssim
-from skimage.metrics import mean_squared_error
-from skimage.util import crop
-from skimage.transform import rescale, resize, downscale_local_mean
 from sentence_transformers import SentenceTransformer, util
 from PIL import Image
 import glob
 import os
 import torch
 import argparse
+import heapq
 
 def create_parser():
     parser = argparse.ArgumentParser(description='Graph Results')
@@ -24,6 +19,14 @@ def create_parser():
         type=int,
         dest="cluster",
         help='Cluster Number\').'
+    )
+    parser.add_argument(
+        '-t',
+        '--threshold',
+        default='0.400', 
+        type=str,
+        dest="threshold",
+        help='Threshold\').'
     )
 
     args = parser.parse_args()
@@ -42,14 +45,18 @@ def main():
     out_cluster_ssim = []
     add_cluster_ssim = []
 
+    capacity = 200
+    out_cluster_names = []
+    in_cluster_names = []
+
     max_i1 = ""
     max_i2 = ""
     out_cluster_max = 0
 
     train_folder = "training_imgs"
     
-    foldername = "generated_images_orig_blocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_0.400"
-    extra_folder = "add_generated_images_orig_blocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_0.400"
+    foldername = "generated_images_orig_blocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_" +str(args.threshold)
+    extra_folder = "add_generated_images_orig_blocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_" +str(args.threshold)
 
     for image1 in os.listdir(foldername):
 
@@ -71,107 +78,78 @@ def main():
             processed_images = util.paraphrase_mining_embeddings(encoded_image)[0]
             
             if cluster == str(args.cluster):
-                in_cluster_ssim.append(processed_images[0])
+                in_cluster_ssim.append((processed_images[0], image1, image2))
+
+                if len(in_cluster_names) < capacity:
+                    heapq.heappush(in_cluster_names, (processed_images[0], image1, image2))
+                else:
+                    spilled_value = heapq.heappushpop(in_cluster_names, (processed_images[0], image1, image2))
             else:
-                out_cluster_ssim.append(processed_images[0])
+                out_cluster_ssim.append((processed_images[0], image1, image2))
+                if len(out_cluster_names) < capacity:
+                    heapq.heappush(out_cluster_names, (processed_images[0], image1, image2))
+                else:
+                    spilled_value = heapq.heappushpop(out_cluster_names, (processed_images[0], image1, image2))
                 if processed_images[0] > out_cluster_max:
                     max_i1 = image1
                     max_i2 = image2
                     out_cluster_max = processed_images[0]
-    for image1 in os.listdir(extra_folder):
+                    
+    # for image1 in os.listdir(extra_folder):
 
-        for image2 in os.listdir(train_folder):
-            image_names = []
-            if image1.endswith(".jpg"):
-                image_names.append(os.path.join(extra_folder, image1))
-            else:
-                continue
-            cluster = image2.strip(".jpg").split("_")[0]
-            print(cluster)
-            image_names.append(os.path.join(train_folder, image2))
-            encoded_image = model.encode([Image.open(filepath) for filepath in image_names], batch_size=2, convert_to_tensor=True, show_progress_bar=True)
+    #     for image2 in os.listdir(train_folder):
+    #         image_names = []
+    #         if image1.endswith(".jpg"):
+    #             image_names.append(os.path.join(extra_folder, image1))
+    #         else:
+    #             continue
+    #         cluster = image2.strip(".jpg").split("_")[0]
+    #         print(cluster)
+    #         image_names.append(os.path.join(train_folder, image2))
+    #         encoded_image = model.encode([Image.open(filepath) for filepath in image_names], batch_size=2, convert_to_tensor=True, show_progress_bar=True)
 
-            # Now we run the clustering algorithm. This function compares images aganist 
-            # all other images and returns a list with the pairs that have the highest 
-            # cosine similarity score
-            processed_images = util.paraphrase_mining_embeddings(encoded_image)[0]
+    #         # Now we run the clustering algorithm. This function compares images aganist 
+    #         # all other images and returns a list with the pairs that have the highest 
+    #         # cosine similarity score
+    #         processed_images = util.paraphrase_mining_embeddings(encoded_image)[0]
             
-            add_cluster_ssim.append(processed_images[0])
+    #         add_cluster_ssim.append(processed_images[0])
 
-    print("Out-cluster score:")
+
     if len(out_cluster_ssim) > 0:
         #print(sum(out_cluster_ssim) / len(out_cluster_ssim))
         print(max_i1)
         print(max_i2)
         print(out_cluster_max)
 
+    with open('outclus_blocked_{}_{}.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in out_cluster_ssim))
 
-    np.savetxt("outclus_blocked_{}.out".format(args.cluster), np.array(out_cluster_ssim))
-    np.savetxt("inclus_blocked_{}.out".format(args.cluster), np.array(in_cluster_ssim))
-    np.savetxt("addclus_blocked_{}.out".format(args.cluster), np.array(add_cluster_ssim))
+    with open('inclus_blocked_{}_{}.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in in_cluster_ssim))
+
+    np.savetxt("addclus_blocked_{}_{}.out".format(args.cluster, args.threshold), np.array(add_cluster_ssim))
+    
+    with open('outclus_blocked_{}_{}_imgs.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in out_cluster_names))
     #print(out_cluster_ssim)       
+    with open('inclus_blocked_{}_{}_imgs.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in in_cluster_names))
  
     print("In-cluster score:")
     if len(in_cluster_ssim) > 0:
         print(sum(in_cluster_ssim) / len(in_cluster_ssim))
     #print((in_cluster_ssim))
     
-    print("Additional cluster score:")
+"""     print("Additional cluster score:")
     if len(add_cluster_ssim) > 0:
-        print(sum(add_cluster_ssim) / len(add_cluster_ssim))
-
-
+        print(sum(add_cluster_ssim) / len(add_cluster_ssim)) """
 
 
 if __name__ == "__main__":
     main()
 
             
-    
-
-
-
-
-""" 
-    for i in range(43):
-        if i == 1 or i == 4:
-            continue
-        train_imgname = str(i)+".jpg"
-        train_imgname = os.path.join(train_folder, train_imgname)
-        original_train = ski.io.imread(train_imgname)
-        if (original_train.shape[0] < 512):
-            continue
-        else:
-            original_train = original_train#[1:513, 1:513]
-        training_imgs.append(original_train)
-        #print(original_train.shape)
-        for j in range(5):
-            if i >= 10:
-                image_name = "img_00" + str(i) + "_0" + str(j) + ".jpg"
-            else:
-                image_name = "img_000" + str(i) + "_0" + str(j) + ".jpg"
-            
-            filename = os.path.join(foldername, image_name)
-            img = ski.io.imread(filename)
-            img = resize(img, original_train.shape)
-            images_test.append(img)
-            #print(img.shape)
-    
-    for index, img in enumerate(images_test):
-        original_train = training_imgs[index]
-        mse_none = mean_squared_error(img, original_train)
-        b_max = max(img.max(), original_train.max())
-        b_min = min(img.min(), original_train.min())
-        ssim_none = ssim(img, original_train, channel_axis=-1,  data_range=b_max - b_min)#data_range=255,
-        mse_results.append(mse_none)
-        ssim_results.append(ssim_none)
-
-    print("MSE Score:")
-    print(mse_results)
-    print("SSIM Scores:")
-    print(ssim_results)
-    print(sum(ssim_results) / len(ssim_results)) """
-
     # 0.015920809296883415 0 0.20901010856038457
     # 0.016040029611762294 1 0.2227764844700998
     # 0.016060485182275413 2 0.2526291204852843

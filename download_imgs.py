@@ -2,7 +2,7 @@ import pandas as pd
 import wget
 import time  # for sleep
 folder = 'training_imgs'
-for i in range(12):
+for i in range(21):
    df = pd.read_csv("prompts/memorized_laion_prompts_cluster_{}_embeddings.csv".format(i), sep=';')
    
 

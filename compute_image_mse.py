@@ -1,18 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import skimage as ski
-from skimage import data, img_as_float
-from skimage.metrics import structural_similarity as ssim
-from skimage.metrics import mean_squared_error
-from skimage.util import crop
-from skimage.transform import rescale, resize, downscale_local_mean
+
 from sentence_transformers import SentenceTransformer, util
 from PIL import Image
 import glob
 import os
 import torch
 import argparse
+import heapq
 
 def main():
 
@@ -27,14 +23,18 @@ def main():
     out_cluster_ssim = []
     add_cluster_ssim = []
 
+    capacity = 200
+    out_cluster_names = []
+    in_cluster_names = []
+
     max_i1 = ""
     max_i2 = ""
     out_cluster_max = 0
 
     train_folder = "training_imgs"
     
-    foldername = "generated_images_orig_unblocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_0.400"
-    extra_folder = "add_generated_images_orig_unblocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_0.400"
+    foldername = "generated_images_orig_unblocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_" +str(args.threshold)
+    extra_folder = "add_generated_images_orig_unblocked_r_cluster_"+ str(args.cluster)+"_embeddings_block_all_"+str(args.threshold)
 
     for image1 in os.listdir(foldername):
 
@@ -56,14 +56,23 @@ def main():
             processed_images = util.paraphrase_mining_embeddings(encoded_image)[0]
             
             if cluster == str(args.cluster):
-                in_cluster_ssim.append(processed_images[0])
+                in_cluster_ssim.append((processed_images[0], image1, image2))
+
+                if len(in_cluster_names) < capacity:
+                    heapq.heappush(in_cluster_names, (processed_images[0], image1, image2))
+                else:
+                    spilled_value = heapq.heappushpop(in_cluster_names, (processed_images[0], image1, image2))
             else:
-                out_cluster_ssim.append(processed_images[0])
+                out_cluster_ssim.append((processed_images[0], image1, image2))
+                if len(out_cluster_names) < capacity:
+                    heapq.heappush(out_cluster_names, (processed_images[0], image1, image2))
+                else:
+                    spilled_value = heapq.heappushpop(out_cluster_names, (processed_images[0], image1, image2))
                 if processed_images[0] > out_cluster_max:
                     max_i1 = image1
                     max_i2 = image2
                     out_cluster_max = processed_images[0]
-    for image1 in os.listdir(extra_folder):
+    """ for image1 in os.listdir(extra_folder):
 
         for image2 in os.listdir(train_folder):
             image_names = []
@@ -81,7 +90,7 @@ def main():
             # cosine similarity score
             processed_images = util.paraphrase_mining_embeddings(encoded_image)[0]
             
-            add_cluster_ssim.append(processed_images[0])
+            add_cluster_ssim.append(processed_images[0]) """
 
     print("Out-cluster score:")
     if len(out_cluster_ssim) > 0:
@@ -90,10 +99,19 @@ def main():
         print(max_i2)
         print(out_cluster_max)
 
+    with open('outclus_unblock_{}_{}.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in out_cluster_ssim))
 
-    np.savetxt("outclus_unblock_{}.out".format(args.cluster), np.array(out_cluster_ssim))
-    np.savetxt("inclus_unblock_{}.out".format(args.cluster), np.array(in_cluster_ssim))
-    np.savetxt("addclus_unblock_{}.out".format(args.cluster), np.array(add_cluster_ssim))
+    with open('inclus_unblock_{}_{}.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in in_cluster_ssim))
+
+    np.savetxt("addclus_unblock_{}_{}.out".format(args.cluster, args.threshold), np.array(add_cluster_ssim))
+    
+    with open('outclus_unblocked_{}_{}_imgs.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in out_cluster_names))
+
+    with open('inclus_unblocked_{}_{}_imgs.out'.format(args.cluster, args.threshold), 'w') as fp:
+        fp.write('\n'.join('{} {} {}'.format(x[0],x[1], x[2]) for x in in_cluster_names))
     #print(out_cluster_ssim)       
  
     print("In-cluster score:")
@@ -117,6 +135,15 @@ def create_parser():
         dest="cluster",
         help='Cluster Number\').'
     )
+    parser.add_argument(
+        '-t',
+        '--threshold',
+        default='0.400', 
+        type=str,
+        dest="threshold",
+        help='Threshold\').'
+    )
+
 
     args = parser.parse_args()
     return args

@@ -1,7 +1,11 @@
 generated_images_*
+temp_image_*
 noise/*
 results/*
 *.jpg
 *.png
 add_*
 prompts/*
+.env/*
+out_results/*
+.gitignore.save
