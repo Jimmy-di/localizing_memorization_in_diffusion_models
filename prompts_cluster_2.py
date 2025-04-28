@@ -43,7 +43,7 @@ df['embeddings'] = embeddings
 max_i = 0
 max_ss = 0
 
-kmeans = KMeans(n_clusters=21,max_iter=500,random_state=1111111)
+kmeans = KMeans(n_clusters=12,max_iter=500,random_state=1)
 kmeans.fit_transform(embeddings) 
 ss = silhouette_score(embeddings, kmeans.fit_predict(embeddings))
 print(ss)
@@ -61,22 +61,14 @@ result.drop(result.columns[result.columns.str.contains('unnamed',case = False)],
 
 centroids  = kmeans.cluster_centers_  #means of shape [10,] 
 
-print(centroids)
 
-cent_dist = []
+for i in range(12):
+    
+    result_i = result.loc[result['cluster'] == i]
+    result_i = result_i.drop(['embeddings', 'tokens'], axis=1).sort_values(['cluster'])
+    print(result_i.head(5))
+    result_i.to_csv('prompts/memorized_laion_prompts_cluster_{}_embeddings.csv'.format(i), sep=";")
 
-for i in range(len(centroids)):
-    dist = []
-    for j in range(len(centroids)):
-        if i == j:
-            dist.append(0)
-        else: 
-            distance = np.linalg.norm(centroids[i]-centroids[j])
-            dist.append(distance)
-    cent_dist.append(dist)
-
-print(cent_dist)
-   
 '''
  # Test Dataset link:  
 df_test = pd.read_csv("prompts/additional_laion_prompts.csv", sep=';')
