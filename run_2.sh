@@ -1,5 +1,3 @@
-#!bin/bash
-
 #!/bin/bash
 
 # To be submitted to the SLURM queue with the command:
@@ -26,11 +24,12 @@
  
 # Load up your conda environment
 # Set up environment on snorlax-login.cs or in interactive session (use `source` keyword instead of `conda`)
-# source activate nemo
 
-for i in $(seq 6 9);
+source activate nemo
+
+for i in $(seq 0 11);
 do
-    python3 -u 3_detect_memorized_neurons.py -d prompts/memorized_laion_prompts_cluster_"$i"_embeddings.csv -o results/memorization_statistics_r_cluster_"$i"_embeddings_0428.csv
-    python3 4_generate_images.py --refined_neurons -o=generated_images_orig_blocked_r_cluster_"$i"_embeddings_block_all_0428 --result_file results/memorization_statistics_r_cluster_"$i"_embeddings_$1_v1_4.csv --num_samples 5
+    #python3.11 -u 3_detect_memorized_neurons.py -d prompts/memorized_laion_prompts_cluster_"$i"_embeddings.csv -o results/memorization_statistics_r_cluster_"$i"_embeddings_0415.csv
+    python3.11 4_generate_images.py --refined_neurons -o=generated_images_orig_blocked_r_cluster_"$i"_embeddings_block_all_0415_50_1 --result_file results/memorization_statistics_r_cluster_"$i"_embeddings_0415_v1_4.csv --num_samples 50 -s 1
 
 done

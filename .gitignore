@@ -5,7 +5,14 @@ results/*
 *.jpg
 *.png
 add_*
-prompts/*
 .env/*
 out_results/*
 .gitignore.save
+*.out
+*.pyc
+*.pt
+hugging_face/
+models/
+myenv/
+nemo/
+pyiqa/

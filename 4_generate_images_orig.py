@@ -32,6 +32,7 @@ def get_num_neurons_per_layer(unet):
 
 @torch.no_grad()
 def main():
+    torch.cuda.empty_cache()
     args = create_parser()
 
     vae, unet, scheduler = load_sd_components(args.version)
@@ -64,6 +65,7 @@ def main():
     
     # load csv file
     df = pd.read_csv(args.result_file, sep=';')
+    #df = df.sample(n=500)
     
     # filter for vm or tm prompts
     if args.memorization_type is not None:
@@ -223,11 +225,13 @@ def main():
             blocked_indices = str_to_list(rows.iloc[0]['Refined Neurons'])
         elif args.original_images:
             blocked_indices = None
-                    
-        images = generate_images([i, prompts], tokenizer, text_encoder, vae, unet, scheduler, num_inference_steps=args.num_steps, blocked_indices=blocked_indices, scaling_factor=args.scaling_factor, guidance_scale=args.guidance_scale, samples_per_prompt=args.num_samples, seed=args.seed)
 
+  
+        images = generate_images([i, prompts], tokenizer, text_encoder, vae, unet, scheduler, num_inference_steps=args.num_steps, blocked_indices=blocked_indices, scaling_factor=args.scaling_factor, guidance_scale=args.guidance_scale, samples_per_prompt=args.num_samples, seed=2)
         for j in range(len(images)):
             images[j].save(f"{args.output_path}/img_{i*args.batch_size + j // args.num_samples:04d}_{j%args.num_samples:02d}.jpg")
+        #images[0].save(f"{args.output_path}/img_{i*args.batch_size + j // args.num_samples:04d}_{j%args.num_samples:02d}.jpg")
+        torch.cuda.empty_cache()
         rtpt.step()
 
 def create_parser():

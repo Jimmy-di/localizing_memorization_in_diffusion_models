@@ -51,23 +51,31 @@ print(ss)
 # Store data into a dataframe
 results = pd.DataFrame() 
 results['document'] = df.Caption
+
 results['embeddings'] = df.embeddings
 results['cluster'] = kmeans.labels_ 
+
 results = results.rename(columns={"document": "Caption", "cluster":"cluster"})
 
-
+print(results)
 result = pd.concat([results.set_index('Caption'), df.set_index('Caption')], axis=1, sort=True, join='inner')
+
+result = result.drop(['embeddings', 'tokens'], axis=1).sort_values(['Unnamed: 0' ])
 result.drop(result.columns[result.columns.str.contains('unnamed',case = False)],axis = 1, inplace = True)
+print(result)
+result.to_csv('prompts/memorized_laion_prompts_cluster_all_embeddings.csv', sep=";")
 
 centroids  = kmeans.cluster_centers_  #means of shape [10,] 
 
 
-for i in range(12):
+#for i in range(12):
     
-    result_i = result.loc[result['cluster'] == i]
-    result_i = result_i.drop(['embeddings', 'tokens'], axis=1).sort_values(['cluster'])
-    print(result_i.head(5))
-    result_i.to_csv('prompts/memorized_laion_prompts_cluster_{}_embeddings.csv'.format(i), sep=";")
+#    result_i = result.loc[result['cluster'] == i]
+#    result_i = result_i.drop(['embeddings', 'tokens'], axis=1).sort_values(['cluster'])
+#    print(result_i.head(5))
+#    result_i.to_csv('prompts/memorized_laion_prompts_cluster_{}_embeddings.csv'.format(i), sep=";")
+
+
 
 '''
  # Test Dataset link:  

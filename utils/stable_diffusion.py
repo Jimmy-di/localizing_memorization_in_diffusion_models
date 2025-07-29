@@ -5,19 +5,27 @@ from torch import autocast
 from hooks.deactivation_context import DeactivateHooksContext
 from PIL import Image
 from hooks.block_activations import RescaleLinearActivations
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, DiffusionPipeline
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, DiffusionPipeline, DPMSolverMultistepScheduler
 
 
-def load_sd_components(model_path):
+def load_sd_components(model_path, unet_path = None):
     if model_path == 'v1-4':
         model_path = 'CompVis/stable-diffusion-v1-4'
     elif model_path == 'v1-5':
         model_path = 'runwayml/stable-diffusion-v1-5'
+    elif model_path == 'v2-1' or model_path == 'stabilityai/stable-diffusion-2-1':
+        model_path = 'stabilityai/stable-diffusion-2-1'
     vae = AutoencoderKL.from_pretrained(model_path,
                                         subfolder="vae")
-    unet = UNet2DConditionModel.from_pretrained(
-        model_path,
-        subfolder="unet")
+    if unet_path:
+        unet = UNet2DConditionModel.from_pretrained(
+            unet_path,
+            subfolder="unet")
+    else:
+        # Use default unet
+        unet = UNet2DConditionModel.from_pretrained(
+            model_path,
+            subfolder="unet")
     
     scheduler = DDIMScheduler.from_pretrained(model_path, subfolder='scheduler')
     return vae, unet, scheduler
@@ -29,19 +37,51 @@ def load_text_components(model_path):
         tokenizer = CLIPTokenizer.from_pretrained(model_path)
         text_encoder = CLIPTextModel.from_pretrained(model_path)
     else:
-        scheduler = EulerDiscreteScheduler.from_pretrained(model_path, subfolder="scheduler")
-        pipe = StableDiffusionPipeline.from_pretrained(model_path, scheduler=scheduler, torch_dtype=torch.float32)
+        pipe = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float32)
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+        
         tokenizer = pipe.tokenizer
         text_encoder = pipe.text_encoder
     return tokenizer, text_encoder
 
+@torch.no_grad()
+def process_text(prompts, tokenizer, text_encoder, samples_per_prompt, mitigation = False):
 
-@torch.no_grad
+    if samples_per_prompt > 1:
+            prompts = [prompt for prompt in prompts for _ in range(samples_per_prompt)]
+        
+    text_input = tokenizer(prompts,
+                            padding="max_length",
+                            max_length=tokenizer.model_max_length,
+                            truncation=True,
+                            return_tensors="pt")
+    text_embeddings = text_encoder(
+        text_input.input_ids.to(text_encoder.device))[0]
+    
+    if mitigation:
+        # 2. Define call parameters
+        if prompts is not None and isinstance(prompts, str):
+            batch_size = 1
+        elif prompts is not None and isinstance(prompts, list):
+            batch_size = len(prompts)
+        else:
+            batch_size = text_embeddings.shape[0]
+
+        # 4. Prepare timesteps
+        #self.scheduler.set_timesteps(num_inference_steps, device=device)
+        #timesteps = self.scheduler.timesteps
+
+    return text_embeddings
+
+@torch.no_grad()
 def generate_images(prompts, tokenizer, text_encoder, vae, unet, scheduler, blocked_indices=None, scaling_factor=0, num_inference_steps=50, early_stopping=None, seed=1, guidance_scale=7, samples_per_prompt=1, hooks=None, inactive_hook_steps=None, add_noise=False, height=512, width=512):
     index = prompts[0]
     prompts = prompts[1]
     print(prompts)
     with torch.no_grad():
+
+        text_embeddings = process_text(prompts, tokenizer, text_encoder, samples_per_prompt)
+
         height = height
         width = width
         generator = torch.manual_seed(seed)
