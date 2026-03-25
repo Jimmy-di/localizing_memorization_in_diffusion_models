@@ -150,7 +150,7 @@ def compute(g_fold, no_segment, simple_name=False, sscd=False, ssim=False):
 
  
 
-    for k in range(0, 500):
+    for k in range(480, 500):
             for j in range(0, 20):
                 
                 k_str = str(k).zfill(4)
@@ -260,7 +260,7 @@ def compute(g_fold, no_segment, simple_name=False, sscd=False, ssim=False):
                         
                         print(fscore)
                         if not q.full():
-                            q.put((fscore, fscore, fscore, imname, img_name))
+                            q.put((score, bscore, fscore, imname, img_name))
                         else:
                             min_pair = q.get()
                             min_score = min_pair[0]

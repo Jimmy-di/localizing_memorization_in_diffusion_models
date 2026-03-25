@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.ticker as mtick
 
 df = pd.read_csv("generated_images_orig_unblocked_v1_4_1/scores.csv")
-df2 = pd.read_csv("generated_images_nemo_cluster/scores.csv")
+df2 = pd.read_csv("generated_images_orig_unblocked_v1_4_1_50_2/score.csv")
 
 df = df.sort_values("Average Scores").groupby("generated image").last().reset_index()
 df2 = df2.sort_values("Average Scores").groupby("generated image").last().reset_index()
