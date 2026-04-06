@@ -56,11 +56,45 @@ python 4_generate_images.py --refined_neurons -o=generated_images_blocked
   <img src="images/examples.png" alt="Examples"  height=160>
   </center>
 
+## 5. Compute Segments
+Split each generated image into foreground and background using the BiRefNet segmentation model. Results are saved to `<mem_folder>/foreground/` and `<mem_folder>/background/`:
+```bash
+python 5_compute_segments.py \
+    --mem_folder memorized_images \
+    --start 0 \
+    --end 500
+```
+
+## 6. Compute Background Scores
+Compare generated images against memorized originals using MS-SSIM on foreground and background segments separately. For each generated image, the top-k most similar memorized images are retained. Scores are written to `<gen_folder>/scores.csv`:
+```bash
+python 6_bg_scores.py \
+    --gen_folder generated_images_blocked \
+    --mem_folder memorized_images \
+    --num_clusters 12 \
+    --num_prompts 66 \
+    --num_samples 5 \
+    --num_mem_images 500 \
+    --top_k 5
+```
+
+To skip segmentation and compare full images directly (no step 5 required):
+```bash
+python 6_bg_scores.py --gen_folder generated_images_blocked --no_segment
+```
+
+If your generated images use the default step 4 naming (`img_XXXX_YY.jpg` without a cluster prefix), add `--no_cluster_prefix`:
+```bash
+python 6_bg_scores.py --gen_folder generated_images_blocked --no_cluster_prefix
+```
+
+To use standard SSIM instead of MS-SSIM, add `--ssim`.
+
 # Evaluation Metrics
 
-After generating images, compute the metrics by running the scripts in the [metrics](metrics) directory. For all metrics, provide the link to the CSV result file containing the detected neurons. To split the results into VM and TM prompts, also provide a link to the original prompt file with ```-p=prompts/memorized_laion_prompts.csv```
+After generating images, compute the metrics by running the scripts in the [metrics](metrics) directory. For all metrics, provide the link to the CSV result file containing the detected neurons. To split the results into VM and TM prompts, also provide the original prompts and clustered prompts in the prompts folder.1
 
-For SSCD-based metrics, download the model via ```wget https://dl.fbaipublicfiles.com/sscd-copy-detection/sscd_disc_mixup.torchscript.pt``` and place it in the project's root folder.
+For SSCD-based metrics, download the model via ```wget https://dl.fbaipublicfiles.com/sscd-copy-detection/sscd_disc_mixup.torchscript.pt``` and place it in the project folder.
 
 ## Memorization
 The memorization metrics measure the degree of memorization still present in the generated images. Generate images for each memorized prompt with activated/deactivated memorization neurons and measure the cosine similarities between image pairs using SSCD embeddings to quantify memorization. Additionally, measure the degree of memorization towards the original training images. First, download the original images following the URLs provided in the [prompt file](prompts/memorized_laion_prompts.csv). Ensure the downloaded images are enumerated like ```0001_first_image.jpg``` to match the generated and original images in the script. Higher SSCD scores indicate a higher degree of memorization. Run the following scripts to compute the memorization metrics:
@@ -69,6 +103,8 @@ The memorization metrics measure the degree of memorization still present in the
 python metrics/compute_sscd_gen.py -p=prompts/memorized_laion_prompts.csv -f=generated_images_blocked -r=generated_images_unblocked
 python metrics/compute_sscd_orig.py -p=prompts/memorized_laion_prompts.csv -f=generated_images_blocked -r=original_images
 ```
+
+The groundtruth images were taken from Wen el al., 2025: https://drive.google.com/file/d/1mdhkyTlDBZIW6LaO_Q1J3roaU2Be0Nvo/view
 
 ## Diversity
 The diversity metric assesses the variety of images generated for the same memorized prompt with different seeds. Deactivating memorization neurons increases the diversity of generated images. Compute the diversity metric by running the following script:
@@ -88,10 +124,12 @@ python metrics/compute_prompt_alignment.py -p=prompts/memorized_laion_prompts.cs
 # Citation
 If you build upon our work, please don't forget to cite us.
 ```
-@inproceedings{hintersdorf2024nemo,
-    title={Finding NeMo: Localizing Neurons Responsible For Memorization in Diffusion Models},
-    author={Dominik Hintersdorf and Lukas Struppek and Kristian Kersting and Adam Dziedzic and Franziska Boenisch},
-    journal={arXiv preprint},
-    volume={arXiv:2406.02366},
-    year={2024}
+@misc{di2025demystifyingforegroundbackgroundmemorizationdiffusion,
+      title={Demystifying Foreground-Background Memorization in Diffusion Models}, 
+      author={Jimmy Z. Di and Yiwei Lu and Yaoliang Yu and Gautam Kamath and Adam Dziedzic and Franziska Boenisch},
+      year={2025},
+      eprint={2508.12148},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2508.12148}, 
 }
