@@ -1,2 +1,0 @@
-Loading pretrained model Inception3 from /u3/z2di/.cache/torch/hub/pyiqa/pt_inception-2015-12-05-6726825d.pth
-Computing FID of a folder with FFHQ-clean-trainval70k-512 statistics
